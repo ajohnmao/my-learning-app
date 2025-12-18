@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>網頁開發白話文 - 實戰圖解版 (本地離線版)</title>
+    
+    <!-- 1. Tailwind CSS: 負責網頁樣式排版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React 核心: 負責程式邏輯 (使用生產版本以確保穩定) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 3. Babel: 負責將 JSX 語法翻譯成瀏覽器看得懂的 JS -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 4. Lucide Icons: 負責顯示圖示 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- 錯誤監控: 如果白畫面，會跳出提示 -->
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            // 忽略一些無關緊要的 script 錯誤
+            if (msg.toLowerCase().indexOf('script error') > -1) return;
+            console.error('Error:', error);
+            // alert('程式發生錯誤，請按 F12 查看 Console\n' + msg);
+        };
+    </script>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', Roboto, sans-serif;
+            background-color: #f8fafc;
+        }
+        /* 隱藏捲軸樣式 */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 進場動畫 */
+        @keyframes scaleIn {
+            from { transform: scale(0.98); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .animate-scale-in {
+            animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body>
+    <!-- React 將會渲染在這個 div 裡面 -->
+    <div id="root"></div>
+
+    <!-- 主程式碼開始 -->
+    <script type="text/babel">
+        const { useState, useMemo, useEffect, useRef } = React;
+
+        // --- 1. 圖示封裝元件 (Icon Wrapper) ---
+        // 因為在 HTML 中無法直接 import React 元件，我們建立一個通用的 Icon 元件
+        // 它會呼叫 lucide.createIcons 來將 <i> 標籤轉換為 SVG
+        const Icon = ({ name, size = 20, color = "currentColor", className = "" }) => {
+            const ref = useRef(null);
+            
+            useEffect(() => {
+                if (ref.current && window.lucide) {
+                    // 將駝峰命名 (GitBranch) 轉為烤肉串命名 (git-branch)
+                    const iconName = name.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase().replace(/^-/, '');
+                    
+                    // 設定標籤供 lucide 掃描
+                    ref.current.innerHTML = `<i data-lucide="${iconName}"></i>`;
+                    
+                    // 執行轉換
+                    window.lucide.createIcons({
+                        root: ref.current,
+                        nameAttr: 'data-lucide',
+                        attrs: {
+                            class: className,
+                            width: size,
+                            height: size,
+                            stroke: color === "currentColor" ? undefined : color
+                        }
+                    });
+                }
+            }, [name, size, color, className]);
+
+            return <span ref={ref} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
+        };
+
+        // --- 2. 學習資料庫 (Data) ---
+        const LEARNING_DATA = [
+            // === Git 特輯 ===
+            {
+                id: 200, category: 'git_special', title: 'Git vs GitHub',
+                icon: <div className="flex gap-1"><Icon name="GitBranch" color="#ea580c"/><Icon name="Globe" color="#1e293b"/></div>,
+                desc: '兩者常常被搞混，但其實完全不同。',
+                analogy: '單機遊戲 vs Steam 雲端平台',
+                explanation: 'Git 是安裝在你電腦上的工具（單機版），用來存檔；GitHub 是網路上的網站（線上版），用來備份和分享你的存檔。',
+                example: { type: 'concept', content: (
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-orange-50 p-2 rounded border border-orange-200">
+                            <div className="font-bold text-orange-800 mb-1">Git (工具)</div>
+                            <ul className="list-disc pl-3 text-slate-600"><li>版本控制軟體</li><li>本機運作 (Local)</li><li>免網路</li></ul>
+                        </div>
+                        <div className="bg-slate-100 p-2 rounded border border-slate-300">
+                            <div className="font-bold text-slate-800 mb-1">GitHub (網站)</div>
+                            <ul className="list-disc pl-3 text-slate-600"><li>託管平台</li><li>雲端備份 (Remote)</li><li>需網路</li></ul>
+                        </div>
+                    </div>
+                )}
+            },
+            {
+                id: 201, category: 'git_special', title: 'Git 三大區域', icon: <Icon name="Layers" color="#3b82f6"/>,
+                desc: '檔案在 Git 中的旅程。',
+                analogy: '工作桌 -> 裝箱 -> 寄出',
+                explanation: '新手常忘記 add 就 commit。必須先將檔案從工作區放到暫存區（裝箱），才能提交（寄出）。',
+                example: { type: 'process', steps: [
+                    { label: '工作區', icon: 'FileText', desc: '寫程式中' },
+                    { label: 'add', icon: 'ArrowRight', color: 'text-orange-500' },
+                    { label: '暫存區', icon: 'Box', desc: '準備中' },
+                    { label: 'commit', icon: 'ArrowRight', color: 'text-orange-500' },
+                    { label: '儲存庫', icon: 'Database', desc: '已存檔' }
+                ]}
+            },
+            {
+                id: 202, category: 'git_special', title: 'Commit (提交)', icon: <Icon name="GitCommit" color="#ea580c"/>,
+                desc: 'Git 的基本存檔單位。',
+                analogy: '遊戲存檔點 / 拍立得',
+                explanation: '每一個 Commit 都是一個時間點的快照，包含 ID 和訊息。',
+                example: { type: 'code', title: 'VS Code 提交介面', code: `Message: feat: 新增登入按鈕\n[Commit]`, preview: <div className="bg-slate-800 text-white p-2 rounded text-xs text-center">✅ Commit Success<br/><span className="text-slate-400">hash: a1b2c3d</span></div> }
+            },
+            {
+                id: 203, category: 'git_special', title: 'Branch (分支)', icon: <Icon name="GitBranch" color="#a855f7"/>,
+                desc: '將開發路線分開，互不影響。',
+                analogy: '平行時空',
+                explanation: '你可以複製一個平行世界來修 Bug，修壞了也不會影響主線。',
+            },
+            {
+                id: 208, category: 'git_special', title: 'Pull Request (PR)', icon: <Icon name="GitPullRequest" color="#16a34a"/>,
+                desc: '請求合併你的修改。',
+                analogy: '交作業 / 提案',
+                explanation: '在 GitHub 上告訴原作者：「我修好了，請檢查並合併」。',
+                example: { type: 'process', steps: [{label:'Fork'}, {label:'修改'}, {label:'PR'}, {label:'Merge'}] }
+            },
+            
+            // === 網路基礎 ===
+            { id: 1, category: 'basic', title: '網站運作', icon: <Icon name="Globe" color="#3b82f6"/>, desc: '輸入網址後發生的事。', analogy: '點餐流程', explanation: '你是客人，瀏覽器是服務生，伺服器是廚房。', example: { type: 'process', steps: [{label:'使用者'}, {label:'Request'}, {label:'伺服器'}, {label:'Response'}] } },
+            { id: 2, category: 'basic', title: 'Request/Response', icon: <Icon name="ArrowRight" color="#22c55e"/>, desc: '一問一答的對話。', analogy: '點菜單與上菜', explanation: '瀏覽器發請求，伺服器回傳檔案。' },
+            { id: 13, category: 'basic', title: 'HTTP vs HTTPS', icon: <Icon name="Lock" color="#16a34a"/>, desc: '傳輸安全協定。', analogy: '明信片 vs 密封信封', explanation: 'HTTPS 有加密，駭客看不到內容。' },
+
+            // === 前端 ===
+            { id: 3, category: 'frontend', title: 'HTML', icon: <Icon name="Layout" color="#f97316"/>, desc: '網頁骨架。', analogy: '鋼筋水泥', explanation: '定義標題、圖片位置。', example: { type: 'code', title: 'HTML', code: `<h1>哈囉</h1>\n<button>按鈕</button>`, preview: <div className="p-2 border bg-white rounded"><h1 className="font-bold text-lg">哈囉</h1><button className="bg-gray-100 border px-2 py-0.5 rounded text-sm">按鈕</button></div> } },
+            { id: 4, category: 'frontend', title: 'CSS', icon: <Icon name="Layers" color="#60a5fa"/>, desc: '網頁樣式。', analogy: '裝潢油漆', explanation: '負責顏色、字體、排版。', example: { type: 'code', title: 'CSS', code: `h1 { color: blue; }`, preview: <h1 className="text-blue-600 font-bold text-lg">我是藍色標題</h1> } },
+            { id: 22, category: 'frontend', title: 'Flexbox', icon: <Icon name="Layout" color="#2563eb"/>, desc: '排版系統。', analogy: '自動置物架', explanation: '讓元素自動排列對齊。', example: { type: 'code', title: 'Flex 置中', code: `display: flex;\ngap: 10px;`, preview: <div className="flex gap-2 justify-center bg-slate-100 p-2"><div className="w-6 h-6 bg-blue-500 rounded text-white text-center">1</div><div className="w-6 h-6 bg-blue-500 rounded text-white text-center">2</div></div> } },
+
+            // === JavaScript ===
+            { id: 5, category: 'js', title: 'JavaScript', icon: <Icon name="Play" color="#eab308"/>, desc: '網頁大腦。', analogy: '機關動作', explanation: '處理點擊、運算邏輯。', example: { type: 'code', title: 'JS 互動', code: `alert('你好!')`, preview: <button onClick={()=>alert('JS 運作正常!')} className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded font-bold hover:bg-yellow-300 transition">點我測試</button> } },
+            { id: 108, category: 'js', title: 'State (狀態)', icon: <Icon name="Activity" color="#ec4899"/>, desc: '元件的數據。', analogy: '記分板', explanation: '資料改變，畫面自動更新。', example: { type: 'interactive', content: () => { const [c,s]=useState(0); return <div className="flex gap-2 items-center bg-pink-50 p-2 rounded"><span className="font-bold text-pink-700">數值: {c}</span><button onClick={()=>s(c+1)} className="bg-pink-500 text-white px-2 rounded text-xs">+1</button></div> } } },
+
+            // === 後端 & 工具 ===
+            { id: 6, category: 'backend', title: 'Backend', icon: <Icon name="Server" color="#9333ea"/>, desc: '後端邏輯。', analogy: '廚房', explanation: '處理資料運算與存取。' },
+            { id: 32, category: 'backend', title: 'SQL', icon: <Icon name="List" color="#3b82f6"/>, desc: '資料庫語言。', analogy: '跟倉管說話', explanation: 'SELECT * FROM Users' },
+            { id: 41, category: 'tools', title: 'Terminal', icon: <Icon name="Terminal" color="#000000"/>, desc: '終端機。', analogy: '手排車', explanation: '打字控制電腦。' },
+            { id: 46, category: 'tools', title: 'VS Code', icon: <Icon name="Code" color="#3b82f6"/>, desc: '程式編輯器。', analogy: '大廚刀具', explanation: '寫程式必備工具。' }
+        ];
+
+        // --- 3. 視覺化組件 (Visualizer) ---
+        const Visualizer = ({ example }) => {
+            if (!example) return null;
+
+            if (example.type === 'code') {
+                return (
+                    <div className="mt-3 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden text-xs">
+                        <div className="bg-slate-200 px-3 py-1 text-slate-600 font-bold flex justify-between items-center">
+                            <span>{example.title || '程式碼範例'}</span>
+                            <Icon name="Code" size={14} />
+                        </div>
+                        <div className="grid grid-cols-2 divide-x divide-slate-200">
+                            <div className="p-2 bg-slate-800 text-green-400 font-mono overflow-x-auto">
+                                <pre>{example.code}</pre>
+                            </div>
+                            <div className="p-2 bg-white flex flex-col justify-center items-center">
+                                <div className="text-slate-400 text-[10px] uppercase mb-1 border-b w-full text-center">Result</div>
+                                {example.preview}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            if (example.type === 'process') {
+                return (
+                    <div className="mt-3 bg-white rounded-lg border border-slate-200 p-3 text-xs">
+                        <div className="font-bold text-slate-700 mb-2 border-b pb-1 flex items-center gap-2">
+                            <Icon name="Activity" size={14} className="text-indigo-500"/> 流程圖解
+                        </div>
+                        <div className="flex items-center justify-between gap-1 overflow-x-auto">
+                            {example.steps.map((step, idx) => (
+                                <React.Fragment key={idx}>
+                                    <div className="flex flex-col items-center text-center min-w-[40px]">
+                                        {step.icon && <div className={`mb-1 ${step.color || 'text-slate-600'}`}><Icon name={step.icon} size={16}/></div>}
+                                        <span className={`font-bold ${step.color || 'text-slate-700'}`}>{step.label}</span>
+                                    </div>
+                                    {idx < example.steps.length - 1 && <div className="text-slate-300">→</div>}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+            if (example.type === 'concept') {
+                return (
+                    <div className="mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+                        <div className="font-bold text-slate-600 mb-2 border-b border-slate-200 pb-1">圖解概念</div>
+                        {example.content}
+                    </div>
+                );
+            }
+            if (example.type === 'interactive') {
+                return <div className="mt-3"><example.content /></div>;
+            }
+            return null;
+        };
+
+        // --- 4. 主應用程式 (App) ---
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('learn');
+            const [selectedCategory, setSelectedCategory] = useState('git_special');
+            const [searchQuery, setSearchQuery] = useState('');
+
+            // 篩選資料
+            const filteredData = useMemo(() => {
+                return LEARNING_DATA.filter(item => {
+                    const matchCat = selectedCategory === 'all' || item.category === selectedCategory;
+                    const matchSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                        item.desc.toLowerCase().includes(searchQuery.toLowerCase());
+                    return matchCat && matchSearch;
+                });
+            }, [selectedCategory, searchQuery]);
+
+            return (
+                <div className="min-h-screen pb-10">
+                    {/* Header */}
+                    <header className="bg-indigo-600 text-white p-4 shadow-lg sticky top-0 z-20">
+                        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center space-x-2">
+                                <Icon name="Brain" size={28} />
+                                <h1 className="text-xl font-bold tracking-wide">網頁開發白話文 <span className="text-xs bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full">離線版</span></h1>
+                            </div>
+                            <div className="relative w-full md:w-auto">
+                                <div className="absolute left-2 top-2 text-indigo-200"><Icon name="Search" size={16}/></div>
+                                <input 
+                                    type="text" 
+                                    placeholder="搜尋關鍵字..." 
+                                    className="bg-indigo-700 rounded-full pl-9 pr-4 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-white placeholder-indigo-300 text-white transition-all"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-5xl mx-auto p-4 md:p-6">
+                        {/* Categories */}
+                        <div className="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide">
+                            {[
+                                {id:'all', label:'全部'},
+                                {id:'git_special', label:'★ Git 特輯'},
+                                {id:'basic', label:'基礎'},
+                                {id:'frontend', label:'前端'},
+                                {id:'js', label:'JS'},
+                                {id:'backend', label:'後端'},
+                                {id:'tools', label:'工具'}
+                            ].map(cat => (
+                                <button 
+                                    key={cat.id}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                    className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
+                                        selectedCategory===cat.id 
+                                        ? 'bg-indigo-600 text-white shadow-md transform scale-105' 
+                                        : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    {cat.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {filteredData.map((item) => (
+                                <div key={item.id} className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col hover:shadow-lg hover:-translate-y-1 transition-all duration-300 animate-scale-in">
+                                    <div className="p-4 border-b border-slate-50 flex items-center space-x-3 bg-gradient-to-r from-slate-50 to-white">
+                                        <div className="p-2 rounded-lg bg-white shadow-sm border border-slate-100 text-indigo-600">
+                                            {item.icon}
+                                        </div>
+                                        <h3 className="text-base font-bold text-slate-800 leading-tight">{item.title}</h3>
+                                    </div>
+                                    
+                                    <div className="p-4 flex-grow flex flex-col">
+                                        <p className="text-sm text-slate-600 mb-3 leading-relaxed">{item.desc}</p>
+                                        
+                                        <div className="bg-indigo-50/50 p-3 rounded-lg border border-indigo-100 mb-2">
+                                            <div className="flex items-center text-indigo-700 mb-1 font-bold text-[10px] uppercase tracking-wide">
+                                                <Icon name="Smartphone" size={12} className="mr-1" />
+                                                <span>白話比喻</span>
+                                            </div>
+                                            <p className="text-sm font-bold text-slate-700 mb-1">「{item.analogy}」</p>
+                                            <p className="text-xs text-slate-500">{item.explanation}</p>
+                                        </div>
+
+                                        <div className="mt-auto">
+                                            <Visualizer example={item.example} />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {filteredData.length === 0 && (
+                            <div className="text-center py-20 text-slate-400">
+                                <Icon name="Search" size={48} className="mx-auto mb-4 opacity-20"/>
+                                <p>找不到相關內容，試試看搜尋「Git」或「便當」？</p>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        // 5. 啟動 React
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
